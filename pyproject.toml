@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "galaxybridge"
+version = "0.5.0"
+description = "Desktop-independent Linux controls and experimental coexistence for Galaxy Buds"
+requires-python = ">=3.10"
+dependencies = []
+readme = "README.md"
+
+license = {text = "MIT"}
+authors = [{name = "GalaxyBridge contributors"}]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+galaxybridgectl = "galaxybridge.cli:main"
+galaxybridge-ui = "galaxybridge.desktop:main"
+galaxybridge-buds-daemon = "galaxybridge.buds_daemon:main"
+
+[tool.setuptools.packages.find]
+include = ["galaxybridge*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,2 @@
+# Runtime Bluetooth bindings come from the Linux distribution: python3-dbus, python3-gi.
+# Optional GUI: python3-tk. Development: pip install -e '.[dev]'.

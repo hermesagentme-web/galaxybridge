@@ -1,0 +1,18 @@
+[Unit]
+Description=GalaxyBridge Galaxy Buds multipoint session patcher
+After=bluetooth.target pipewire.service wireplumber.service
+Wants=bluetooth.target pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/galaxybridge/environment
+ExecStart=%h/.local/share/galaxybridge/venv/bin/python -m galaxybridge.buds_daemon
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=galaxybridge
+RuntimeDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,8 @@
+# Replace with the address shown by bluetoothctl devices.
+GALAXYBRIDGE_BUDS_ADDRESS=
+GALAXYBRIDGE_BUDS_AUTO_CONNECT=false
+GALAXYBRIDGE_BUDS_AUTO_PATCH=false
+# Opt in only after a successful explicit activation on this device.
+GALAXYBRIDGE_BUDS_PATCH_COOLDOWN_SECONDS=60
+# Never copy a channel from another device or an HFP service.
+# GALAXYBRIDGE_BUDS_VERIFIED_CHANNEL=
