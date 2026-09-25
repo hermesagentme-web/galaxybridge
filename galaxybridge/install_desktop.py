@@ -8,6 +8,20 @@ def quoted(value: str) -> str:
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$') + '"'
 
 
+def unit_path(value: str) -> str:
+    # systemd keeps literal quotes in EnvironmentFile= paths ("path is not
+    # absolute, ignoring"), so escape whitespace C-style instead of quoting.
+    out = []
+    for ch in value:
+        if ch == '\\':
+            out.append('\\\\')
+        elif ch in ' \t\n':
+            out.append(f'\\x{ord(ch):02x}')
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+
 def main():
     data = Path(sys.argv[1]).resolve()
     config = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')).resolve()
@@ -22,7 +36,7 @@ def main():
     (config / 'systemd/user/galaxybridge-buds.service').write_text(
         '[Unit]\nDescription=GalaxyBridge Buds controls\n'
         '[Service]\nType=simple\n'
-        f'EnvironmentFile=-{quoted(environment)}\nExecStart={quoted(python)} -m galaxybridge.buds_daemon\n'
+        f'EnvironmentFile=-{unit_path(environment)}\nExecStart={quoted(python)} -m galaxybridge.buds_daemon\n'
         'Restart=on-failure\nRestartSec=5\nRuntimeDirectory=galaxybridge\nRuntimeDirectoryMode=0700\n'
         'NoNewPrivileges=yes\n[Install]\nWantedBy=default.target\n'
     )
