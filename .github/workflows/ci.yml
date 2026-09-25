@@ -16,5 +16,5 @@ jobs:
       - run: python -m pip install -e '.[dev]' build
       - run: bash scripts/build.sh
       - run: node --check gnome-extension/galaxybridge@galaxybridge.local/extension.js
-      - run: bash -n scripts/install.sh scripts/uninstall.sh
+      - run: bash -n install.sh scripts/install.sh scripts/uninstall.sh
       - run: python -m build

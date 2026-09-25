@@ -18,8 +18,9 @@ GalaxyBridge is unofficial and is not affiliated with Samsung.
 - Noise cancellation / ambient / off commands with device readback.
 - Experimental, guided SMEP multipoint activation.
 - PipeWire/WirePlumber music profile selection.
-- Optional GNOME Quick Settings integration; desktop-independent graphical panel
-  and CLI use the same backend.
+- Desktop-independent GTK panel following the system theme (light or dark).
+- Interactive terminal menu (`galaxybridgectl menu`) for servers and TTYs.
+- Optional GNOME Quick Settings integration; panel, menu and CLI use the same backend.
 - No firmware flashing, factory reset, account login or cloud service.
 
 ## Compatibility
@@ -27,7 +28,8 @@ GalaxyBridge is unofficial and is not affiliated with Samsung.
 | Component | Requirements | Validation |
 | --- | --- | --- |
 | CLI and daemon | Linux, Python 3.10+, BlueZ, D-Bus, PyGObject | Ubuntu 26.04 tested |
-| Standalone panel | Above plus Python Tk and graphical session | Software checks; other desktops need hardware testing |
+| GTK panel | Above plus GTK 3 bindings and a graphical session | Software checks; other desktops need hardware testing |
+| Terminal menu | Same as CLI; works in any TTY or SSH session | Software checks |
 | Music profile controls | PipeWire + WirePlumber with wpctl settings support | Tested locally |
 | GNOME extension | GNOME Shell 50 | Local integration; reload after updates |
 | Other GNOME versions | Use standalone panel or CLI | Extension not declared compatible |
@@ -40,17 +42,30 @@ do not prove that a model's protocol has been validated. See the
 
 ## Install
 
-Install distribution packages providing Python venv/pip, dbus-python, PyGObject,
-BlueZ (including sdptool), and optionally Tk. For Debian/Ubuntu:
+One line on any systemd Linux distribution. The installer detects your
+distribution, installs the matching packages, then walks through the Buds setup:
 
 ```sh
-sudo apt install python3-venv python3-pip python3-dbus python3-gi python3-tk bluez
-# In your local clone:
-bash scripts/install.sh                 # Any desktop; GNOME is not required
-# OR:
-bash scripts/install.sh --gnome         # Also copy GNOME Shell 50 extension
-export PATH="$HOME/.local/bin:$PATH"
+curl -fsSL https://raw.githubusercontent.com/hermesagentme-web/galaxybridge/main/install.sh | bash
 ```
+
+From a local clone instead:
+
+```sh
+bash scripts/install.sh --system-packages --configure
+bash scripts/install.sh --help    # all options (--yes, --no-gnome, ...)
+```
+
+| Distribution family | Packages installed automatically |
+| --- | --- |
+| Debian/Ubuntu/Mint/Pop!_OS | `python3 python3-venv python3-pip python3-dbus python3-gi gir1.2-gtk-3.0 bluez` |
+| Fedora/RHEL/CentOS | `python3 python3-pip python3-dbus python3-gobject gtk3 bluez` |
+| Arch/Manjaro | `python python-pip python-dbus python-gobject gtk3 bluez bluez-utils` |
+| openSUSE/SLES | `python3 python3-pip python3-dbus-python python3-gobject-Gdk typelib-1_0-Gtk-3_0 bluez` |
+
+The GNOME Shell 50 extension is copied automatically on GNOME 50. Every other
+desktop uses the GTK panel (`galaxybridge-ui`) or the terminal menu
+(`galaxybridgectl menu`).
 
 PipeWire and WirePlumber are needed for profile controls; ordinary Bluetooth
 connection and experimental SMEP operations do not depend on GNOME.
@@ -98,6 +113,8 @@ not direct detection of the charging case. Phone auto-reconnect is not guarantee
 ## Everyday commands
 
 ```sh
+galaxybridge-ui                  # graphical panel (any desktop)
+galaxybridgectl menu             # interactive terminal menu
 galaxybridgectl doctor
 galaxybridgectl buds capabilities
 galaxybridgectl buds connect

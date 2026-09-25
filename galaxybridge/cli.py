@@ -61,6 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser = sub.add_parser("doctor", help="check Linux, Bluetooth and PipeWire prerequisites")
     doctor_parser.add_argument("--address")
 
+    sub.add_parser("menu", help="interactive terminal menu (desktops without the GNOME extension)")
+
     diag = sub.add_parser("diagnostics", help="collect redacted diagnostics")
     diag.add_argument("--buds", action="store_true")
     diag.add_argument("--address")
@@ -114,15 +116,18 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "menu":
+            from .tui import run
+            return run()
         if args.command == "doctor":
-            print(json.dumps(doctor(args.address), indent=2, ensure_ascii=False))
+            print(json.dumps(doctor(args.address or _configured_address()), indent=2, ensure_ascii=False))
             return 0
         if args.command == "diagnostics":
             if args.buds:
                 address = _address(args)
                 value = buds_diagnostics(address)
             else:
-                value = doctor(args.address)
+                value = doctor(args.address or _configured_address())
             print(json.dumps(value, indent=2, ensure_ascii=False))
             return 0
         if args.command == "buds":

@@ -4,8 +4,9 @@
 - Only Buds4 Pro controlled Linux sessions were tested locally.
 - Standard Device1.Connected does not prove an A2DP stream or a phone link.
 - Noise protocol payloads are not validated across the whole Buds family.
-- The standalone panel is new; full graphical/hardware acceptance is pending.
-- GNOME integration declares Shell 50 only and uses French labels.
+- The GTK panel follows the desktop theme; full graphical/hardware acceptance is pending.
+- GNOME integration declares Shell 50 only and uses French labels; the panel and
+  terminal menu follow the session locale (fr/en).
 - One configured headset per user daemon. Multi-headset routing is not supported.
 - Call-mode expiry requires a live daemon; do not stop it mid-call-mode.
 - Runtime markers are bookkeeping, not fresh hardware readback.

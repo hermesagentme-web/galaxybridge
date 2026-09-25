@@ -1,7 +1,7 @@
 # GalaxyBridge
 
 Contrôles Linux pour les Samsung Galaxy Buds : panneau graphique indépendant du
-bureau, CLI et extension GNOME facultative.
+bureau, menu terminal, CLI et extension GNOME facultative.
 
 **Projet expérimental. La reconnexion automatique aux deux appareils après un
 passage dans le boîtier n'est pas résolue.** Les tests logiciels réussis ne
@@ -9,40 +9,56 @@ constituent pas une validation matérielle de tous les modèles.
 
 ## Installation
 
-Sur Debian/Ubuntu :
+Une seule commande sur n'importe quelle distribution Linux systemd.
+L'installateur détecte la distribution, installe les bons paquets, puis
+configure les écouteurs :
 
 ```sh
-sudo apt install python3-venv python3-pip python3-dbus python3-gi python3-tk bluez
-bash scripts/install.sh
-# Ou, pour ajouter l'extension GNOME Shell 50 :
-bash scripts/install.sh --gnome
-export PATH="$HOME/.local/bin:$PATH"
-bluetoothctl devices
+curl -fsSL https://raw.githubusercontent.com/hermesagentme-web/galaxybridge/main/install.sh | bash
 ```
 
-Renseigne l'adresse dans `~/.config/galaxybridge/environment`, puis :
+Depuis un clone local :
 
 ```sh
-systemctl --user enable --now galaxybridge-buds.service
-galaxybridge-ui
+bash scripts/install.sh --system-packages --configure
+bash scripts/install.sh --help    # toutes les options (--yes, --no-gnome, ...)
 ```
 
-Le panneau fonctionne indépendamment de GNOME, notamment sous KDE, Xfce,
-Cinnamon et MATE si Python Tk est installé. Ces bureaux restent à valider
-matériellement. Sans systemd, lance `galaxybridge-buds-daemon` dans un terminal
-avec la variable `GALAXYBRIDGE_BUDS_ADDRESS` définie.
+| Famille de distribution | Paquets installés automatiquement |
+| --- | --- |
+| Debian/Ubuntu/Mint/Pop!_OS | `python3 python3-venv python3-pip python3-dbus python3-gi gir1.2-gtk-3.0 bluez` |
+| Fedora/RHEL/CentOS | `python3 python3-pip python3-dbus python3-gobject gtk3 bluez` |
+| Arch/Manjaro | `python python-pip python-dbus python-gobject gtk3 bluez bluez-utils` |
+| openSUSE/SLES | `python3 python3-pip python3-dbus-python python3-gobject-Gdk typelib-1_0-Gtk-3_0 bluez` |
 
-L'installateur préserve la configuration et ne connecte pas les écouteurs.
-Pour GNOME 50, ferme puis rouvre la session et active
-`galaxybridge@galaxybridge.local`. Désactive l'ancienne extension GalaxyBridge
-si elle est déjà installée.
+L'extension GNOME Shell 50 est copiée automatiquement sous GNOME 50 ; tous les
+autres bureaux (KDE, Xfce, Cinnamon, MATE…) utilisent le panneau GTK
+(`galaxybridge-ui`) ou le menu terminal (`galaxybridgectl menu`). Le panneau suit
+le thème du bureau, clair ou sombre. PipeWire et WirePlumber sont nécessaires
+pour les commandes de profil audio.
+
+L'installateur préserve la configuration existante et ne connecte pas les
+écouteurs. Pour GNOME 50, ferme puis rouvre la session, puis active
+`galaxybridge@galaxybridge.local` :
+
+```sh
+gnome-extensions enable galaxybridge@galaxybridge.local
+```
+
+N'active pas l'ancienne extension `galaxybridge@kotazi.local` si elle est encore
+présente : les menus apparaîtraient en double.
 
 ## Utilisation
 
-Le panneau permet la connexion PC, la lecture du mode de bruit, les modes ANC,
-ambiant et désactivé, le profil musique et l'assistant multipoint. La CLI offre
-les mêmes commandes. `galaxybridgectl buds capabilities` examine les services
-annoncés sans ouvrir de connexion de contrôle.
+```sh
+galaxybridge-ui        # panneau graphique (tous les bureaux)
+galaxybridgectl menu   # menu interactif en terminal (serveurs, TTYs)
+```
+
+Le panneau et le menu permettent la connexion PC, la lecture du mode de bruit,
+les modes ANC, ambiant et désactivé, le profil musique et l'assistant multipoint.
+La CLI offre les mêmes commandes. `galaxybridgectl buds capabilities` examine
+les services annoncés sans ouvrir de connexion de contrôle.
 
 Le multipoint nécessite actuellement une activation explicite par session :
 préparer, couper le Bluetooth du téléphone, remettre brièvement les Buds dans
