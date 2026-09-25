@@ -33,6 +33,22 @@ DEFAULT_CONNECT_BACKOFF = (3.0, 8.0, 20.0, 60.0, 180.0)
 DEFAULT_RECONNECT_SECONDS = 300.0
 
 
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        LOG.warning("Ignoring invalid %s=%r; falling back to %s", name, os.environ.get(name), default)
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        LOG.warning("Ignoring invalid %s=%r; falling back to %s", name, os.environ.get(name), default)
+        return default
+
+
 def _normalise_address(value: str) -> str:
     return normalise_address(value)
 
@@ -95,34 +111,34 @@ class BudsDaemon:
         self._phone_priority_until = 0.0
         self._phone_priority_seconds = max(
             60.0,
-            float(os.environ.get("GALAXYBRIDGE_BUDS_PHONE_PRIORITY_SECONDS", "600")),
+            _env_float("GALAXYBRIDGE_BUDS_PHONE_PRIORITY_SECONDS", 600.0),
         )
-        self._flap_limit = max(2, int(os.environ.get("GALAXYBRIDGE_BUDS_FLAP_LIMIT", "2")))
+        self._flap_limit = max(2, _env_int("GALAXYBRIDGE_BUDS_FLAP_LIMIT", 2))
         self._stable_connection_seconds = max(
             10.0,
-            float(os.environ.get("GALAXYBRIDGE_BUDS_STABLE_CONNECTION_SECONDS", "30")),
+            _env_float("GALAXYBRIDGE_BUDS_STABLE_CONNECTION_SECONDS", 30.0),
         )
         self._health_check_seconds = max(
             15.0,
-            float(os.environ.get("GALAXYBRIDGE_BUDS_HEALTH_CHECK_SECONDS", "60")),
+            _env_float("GALAXYBRIDGE_BUDS_HEALTH_CHECK_SECONDS", 60.0),
         )
         self._discovery_assist_after = max(
             2,
-            int(os.environ.get("GALAXYBRIDGE_BUDS_DISCOVERY_ASSIST_AFTER", "3")),
+            _env_int("GALAXYBRIDGE_BUDS_DISCOVERY_ASSIST_AFTER", 3),
         )
         if startup_settle_seconds is None:
-            startup_settle_seconds = float(os.environ.get("GALAXYBRIDGE_BUDS_STARTUP_SETTLE_SECONDS", "5"))
+            startup_settle_seconds = _env_float("GALAXYBRIDGE_BUDS_STARTUP_SETTLE_SECONDS", 5.0)
         self._startup_settle_seconds = max(0.0, startup_settle_seconds)
         self._patched_for_session = False
         self._last_patch_started = float('-inf')
         self._patch_cooldown_seconds = max(
-            30.0, float(os.environ.get('GALAXYBRIDGE_BUDS_PATCH_COOLDOWN_SECONDS', '60'))
+            30.0, _env_float('GALAXYBRIDGE_BUDS_PATCH_COOLDOWN_SECONDS', 60.0)
         )
         self._worker_active = False
         self._disconnect_generation = 0
         self._disconnect_confirm_seconds = max(
             2.0,
-            float(os.environ.get("GALAXYBRIDGE_BUDS_DISCONNECT_CONFIRM_SECONDS", "5")),
+            _env_float("GALAXYBRIDGE_BUDS_DISCONNECT_CONFIRM_SECONDS", 5.0),
         )
         self._stop_event = threading.Event()
         self._reconnect_wakeup = threading.Event()
@@ -133,17 +149,17 @@ class BudsDaemon:
         self._call_mode_until = 0.0
         self._call_mode_seconds = max(
             60.0,
-            float(os.environ.get("GALAXYBRIDGE_BUDS_CALL_MODE_SECONDS", "600")),
+            _env_float("GALAXYBRIDGE_BUDS_CALL_MODE_SECONDS", 600.0),
         )
         self._audio_change_lock = threading.Lock()
         self._multipoint_stage = "idle"
         self._session_marker = session_marker or BudsSessionMarker(
-            max_age_seconds=float(os.environ.get("GALAXYBRIDGE_BUDS_SESSION_MARKER_SECONDS", "300"))
+            max_age_seconds=_env_float("GALAXYBRIDGE_BUDS_SESSION_MARKER_SECONDS", 300.0)
         )
         self._audio_policy = audio_policy or HostAudioPolicy(self.address)
         self._noise_session = WarmNoiseControlSession(
             self.address,
-            idle_seconds=float(os.environ.get("GALAXYBRIDGE_BUDS_CONTROL_IDLE_SECONDS", "15")),
+            idle_seconds=_env_float("GALAXYBRIDGE_BUDS_CONTROL_IDLE_SECONDS", 15.0),
             on_mode=self._record_noise_mode,
         )
         self._control_server: BudsControlServer | None = None
@@ -698,6 +714,16 @@ class BudsDaemon:
         self._set_status("ready", "", control_available=True)
         return {"success": True, "stage": self._multipoint_stage, "error": ""}
 
+    def _control_idle_worker(self) -> None:
+        """Drive periodic control work independently of the IPC idle callback.
+
+        The call-mode expiry must fire even while the IPC server is busy (for
+        example during a multipoint operation) or unavailable, so it is driven by
+        this dedicated timer rather than only by IPC accept timeouts.
+        """
+        while not self._stop_event.wait(1.0):
+            self._control_idle()
+
     def _handle_control_request(self, request: dict[str, object]) -> dict[str, object]:
         requested_address = request.get("address")
         if requested_address and _normalise_address(str(requested_address)) != self.address:
@@ -817,12 +843,18 @@ class BudsDaemon:
             name="buds-status-heartbeat",
             daemon=True,
         )
+        control_idle_thread = threading.Thread(
+            target=self._control_idle_worker,
+            name="buds-control-idle",
+            daemon=True,
+        )
         try:
             try:
                 self._start_control_server()
             except BudsIpcError as exc:
                 LOG.warning("Private Buds control service is unavailable: %s", exc)
             heartbeat_thread.start()
+            control_idle_thread.start()
             if self._startup_settle_seconds:
                 LOG.info(
                     "Waiting %.0fs for BlueZ and WirePlumber to finish startup",
@@ -864,6 +896,8 @@ class BudsDaemon:
                 self._control_server = None
             if reconnect_thread is not None:
                 reconnect_thread.join(timeout=1.0)
+            if control_idle_thread.is_alive():
+                control_idle_thread.join(timeout=1.0)
             if heartbeat_thread.is_alive():
                 heartbeat_thread.join(timeout=1.0)
             self._set_status("stopped", control_available=False)
@@ -878,13 +912,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--channel",
         type=int,
-        default=int(os.environ["GALAXYBRIDGE_BUDS_CHANNEL"]) if os.environ.get("GALAXYBRIDGE_BUDS_CHANNEL") else None,
+        default=_env_int("GALAXYBRIDGE_BUDS_CHANNEL", 0) if os.environ.get("GALAXYBRIDGE_BUDS_CHANNEL") else None,
     )
     parser.add_argument(
         "--verified-channel",
         type=int,
         default=(
-            int(os.environ["GALAXYBRIDGE_BUDS_VERIFIED_CHANNEL"])
+            _env_int("GALAXYBRIDGE_BUDS_VERIFIED_CHANNEL", 0)
             if os.environ.get("GALAXYBRIDGE_BUDS_VERIFIED_CHANNEL")
             else None
         ),
@@ -905,7 +939,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--reconnect-seconds",
         type=float,
-        default=float(os.environ.get("GALAXYBRIDGE_BUDS_RECONNECT_SECONDS", str(DEFAULT_RECONNECT_SECONDS))),
+        default=_env_float("GALAXYBRIDGE_BUDS_RECONNECT_SECONDS", DEFAULT_RECONNECT_SECONDS),
         help="steady-state delay after the initial 3s, 8s, 20s, 60s and 180s reconnect attempts",
     )
     parser.add_argument("--once", action="store_true", help="apply once and exit; useful for hardware validation")

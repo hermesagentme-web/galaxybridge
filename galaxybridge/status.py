@@ -36,8 +36,20 @@ class BudsStatusWriter:
             "detail": "",
         }
 
+    # Fields that describe a single operation and must not linger after it ends:
+    # they are cleared on every update and only present again if re-supplied.
+    _EPHEMERAL_KEYS = frozenset({
+        "requested_audio_mode",
+        "requested_mode",
+        "retry_paused",
+        "reconnect_in",
+        "attempt",
+    })
+
     def update(self, state: str, detail: str = "", **fields: Any) -> None:
         with self._lock:
+            for _key in self._EPHEMERAL_KEYS:
+                self._payload.pop(_key, None)
             self._payload.update(fields)
             self._payload.update({
                 "version": 1,

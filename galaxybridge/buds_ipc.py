@@ -13,10 +13,24 @@ from typing import Callable
 
 
 MAX_MESSAGE_BYTES = 16 * 1024
+# sun_path is 108 bytes on Linux including the trailing NUL, so a path must be
+# strictly shorter than this to bind or connect.
+SUN_PATH_LIMIT = 108
 
 
 class BudsIpcError(RuntimeError):
     pass
+
+
+def _socket_path_str(path: Path) -> str:
+    """Return the socket path, refusing ones that cannot fit in sun_path."""
+    text = str(path)
+    if len(text) >= SUN_PATH_LIMIT:
+        raise BudsIpcError(
+            f"GalaxyBridge socket path is too long ({len(text)} bytes, "
+            f"limit {SUN_PATH_LIMIT - 1}): {text}"
+        )
+    return text
 
 
 def default_buds_socket_path() -> Path:
@@ -26,7 +40,11 @@ def default_buds_socket_path() -> Path:
     else:
         candidate = Path("/run/user") / str(os.getuid())
         root = candidate if candidate.is_dir() else Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return root / "galaxybridge" / "buds-control.sock"
+    path = root / "galaxybridge" / "buds-control.sock"
+    if len(str(path)) >= SUN_PATH_LIMIT:
+        # Fall back to a short per-user directory so the socket always fits sun_path.
+        path = Path("/tmp") / f"gb-{os.getuid()}" / "buds-control.sock"
+    return path
 
 
 def request_buds_daemon(
@@ -35,13 +53,14 @@ def request_buds_daemon(
     timeout: float = 20.0,
 ) -> dict[str, object]:
     target = path or default_buds_socket_path()
+    address = _socket_path_str(target)
     request = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
     if len(request) > MAX_MESSAGE_BYTES:
         raise BudsIpcError("GalaxyBridge control request is too large")
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(timeout)
     try:
-        client.connect(str(target))
+        client.connect(address)
         client.sendall(request)
         client.shutdown(socket.SHUT_WR)
         chunks: list[bytes] = []
@@ -99,15 +118,16 @@ class BudsControlServer:
         try:
             wake = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             wake.settimeout(0.2)
-            wake.connect(str(self.path))
+            wake.connect(_socket_path_str(self.path))
             wake.close()
-        except OSError:
+        except (OSError, BudsIpcError):
             pass
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
 
     def _prepare_path(self) -> None:
+        _socket_path_str(self.path)  # fail fast on an unusable path
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         try:
             info = self.path.lstat()
@@ -140,7 +160,7 @@ class BudsControlServer:
         try:
             self._prepare_path()
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            listener.bind(str(self.path))
+            listener.bind(_socket_path_str(self.path))
             os.chmod(self.path, 0o600)
             listener.listen(4)
             listener.settimeout(0.2)
