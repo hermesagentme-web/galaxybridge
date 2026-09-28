@@ -23,6 +23,24 @@ const AUDIO_LABELS = {
     call: 'Appel sur PC (10 min)',
 };
 
+// Compact forms for the Quick Settings tile, which has room for one short line.
+const SHORT_STATE_LABELS = {
+    starting: 'Démarrage…',
+    disconnected: 'En attente',
+    connecting: 'Connexion…',
+    connected: 'Connecté',
+    patching: 'Activation…',
+    ready: 'Prêts',
+    error: 'Reprise',
+    stopped: 'Arrêté',
+};
+
+const SHORT_MODE_LABELS = {
+    off: 'Off',
+    anc: 'ANC',
+    ambient: 'Ambiant',
+};
+
 const STATE_LABELS = {
     starting: 'Démarrage…',
     disconnected: 'En attente des écouteurs',
@@ -148,7 +166,6 @@ class GalaxyBridgeToggle extends QuickSettings.QuickMenuToggle {
         });
         this.menu.addMenuItem(this._cycleItem);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         this._refreshItem = new PopupMenu.PopupMenuItem('Vérifier le mode');
         this._refreshItem.connect('activate', () => this._readNoiseMode(true));
         this.menu.addMenuItem(this._refreshItem);
@@ -244,7 +261,7 @@ class GalaxyBridgeToggle extends QuickSettings.QuickMenuToggle {
             this._noiseUpdatedAt = Number(noise.updated_at) || 0;
         }
 
-        const battery = Number.isInteger(status?.battery) ? ` · ${status.battery}%` : '';
+        const battery = Number.isInteger(status?.battery) ? `${status.battery}%` : '';
         let base = STATE_LABELS[state] ?? 'État inconnu';
         if (this._reconnecting)
             base = 'Reconnexion…';
@@ -252,9 +269,24 @@ class GalaxyBridgeToggle extends QuickSettings.QuickMenuToggle {
             base = 'Changement du mode…';
         else if (this._controlAvailable && this._mode)
             base = `${base} · ${MODE_LABELS[this._mode]}`;
-        this.subtitle = `${base}${battery}`;
+        const full = battery ? `${base} · ${battery}` : base;
 
-        let detail = DETAIL_LABELS[status?.detail] ?? this.subtitle;
+        // The tile keeps one compact line; the full sentence is shown in the
+        // opened menu header where there is room for it.
+        let compact = SHORT_STATE_LABELS[state] ?? 'État inconnu';
+        if (this._reconnecting)
+            compact = 'Reconnexion…';
+        else if (this._changing)
+            compact = 'Changement…';
+        if (this._controlAvailable && this._mode)
+            compact += ` · ${SHORT_MODE_LABELS[this._mode]}`;
+        if (battery)
+            compact += ` · ${battery}`;
+        this.subtitle = compact;
+
+        // setHeader() only styles the first call, so the full sentence lives on
+        // the menu status line where there is room for it.
+        let detail = DETAIL_LABELS[status?.detail] ?? full;
         if (state === 'error' && this._controlAvailable)
             detail = 'Contrôle du bruit disponible · multipoint en reprise';
         else if (this._reading && !this._changing)

@@ -3,5 +3,5 @@
   "name": "GalaxyBridge",
   "description": "Multipoint téléphone prioritaire, profils audio et contrôle du bruit pour Galaxy Buds",
   "shell-version": ["50"],
-  "version": 5
+  "version": 6
 }
